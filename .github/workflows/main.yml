@@ -1,11 +1,11 @@
-name: TurtleBot GUI Simulation
+name: TurtleBot GUI Simulation (Live GUI)
 
 on:
   workflow_dispatch:
 
 jobs:
   turtlebot_sim:
-    runs-on:  ubuntu-22.04
+    runs-on: ubuntu-22.04
 
     env:
       DISPLAY: :99
@@ -25,39 +25,36 @@ jobs:
         echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
         source /opt/ros/humble/setup.bash
 
-    - name: Install simulation dependencies
+    - name: Install simulation and GUI dependencies
       run: |
         sudo apt update
         sudo apt install -y \
           ros-humble-turtlebot3-gazebo \
-          xvfb ffmpeg
+          xvfb x11vnc novnc websockify \
+          git curl net-tools
 
     - name: Start virtual display
       run: |
         Xvfb :99 -screen 0 1920x1080x24 &
         sleep 3
 
-    - name: Launch TurtleBot3 Gazebo and record
+    - name: Start VNC server
+      run: |
+        x11vnc -display :99 -nopw -forever -bg
+
+    - name: Start noVNC
+      run: |
+        git clone https://github.com/novnc/noVNC.git
+        cd noVNC
+        ./utils/launch.sh --vnc localhost:5900 &
+
+    - name: Launch tunnel to expose noVNC (public URL)
+      run: |
+        curl -s https://raw.githubusercontent.com/anderspitman/localhost.run/main/localhost.run.sh | bash
+        echo "🌐 Access the TurtleBot GUI at the URL above (wait ~30s for Gazebo to load)"
+
+    - name: Launch TurtleBot3 in Gazebo
       run: |
         export TURTLEBOT3_MODEL=burger
         source /opt/ros/humble/setup.bash
-
-        # Start recording display
-        ffmpeg -video_size 1920x1080 -framerate 25 -f x11grab -i :99 \
-               -t 30 -y gazebo_output.mp4 &
-        FF_PID=$!
-
-        # Launch Gazebo
-        ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py &
-        ROS_PID=$!
-
-        # Let it run for 30 seconds
-        sleep 30
-        kill $ROS_PID || true
-        wait $FF_PID || true
-
-    - name: Upload video artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: turtlebot-gazebo
-        path: gazebo_output.mp4
+        ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
