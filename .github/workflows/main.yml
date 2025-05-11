@@ -14,12 +14,18 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Setup ROS 2 Humble
-      uses: ros-tooling/setup-ros@v0.6
-      with:
-        distribution: humble
+    - name: Install ROS 2 Humble manually
+      run: |
+        sudo apt update && sudo apt install -y curl gnupg2 lsb-release
+        sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+        echo "deb [signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | \
+          sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+        sudo apt update
+        sudo apt install -y ros-humble-desktop python3-colcon-common-extensions
+        echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+        source /opt/ros/humble/setup.bash
 
-    - name: Install dependencies
+    - name: Install simulation dependencies
       run: |
         sudo apt update
         sudo apt install -y \
@@ -41,10 +47,11 @@ jobs:
                -t 30 -y gazebo_output.mp4 &
         FF_PID=$!
 
-        # Launch Gazebo (will run for 30s)
+        # Launch Gazebo
         ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py &
         ROS_PID=$!
 
+        # Let it run for 30 seconds
         sleep 30
         kill $ROS_PID || true
         wait $FF_PID || true
