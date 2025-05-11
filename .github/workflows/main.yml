@@ -11,6 +11,9 @@ jobs:
       DISPLAY: :99
 
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
     - name: Setup ROS 2 Humble
       uses: ros-tooling/setup-ros@v0.6
       with:
@@ -38,11 +41,10 @@ jobs:
                -t 30 -y gazebo_output.mp4 &
         FF_PID=$!
 
-        # Launch Gazebo
+        # Launch Gazebo (will run for 30s)
         ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py &
         ROS_PID=$!
 
-        # Wait for 30s then kill
         sleep 30
         kill $ROS_PID || true
         wait $FF_PID || true
