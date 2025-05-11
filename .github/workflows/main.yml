@@ -1,0 +1,54 @@
+name: TurtleBot GUI Simulation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  turtlebot_sim:
+    runs-on: ubuntu-latest
+
+    env:
+      DISPLAY: :99
+
+    steps:
+    - name: Setup ROS 2 Humble
+      uses: ros-tooling/setup-ros@v0.6
+      with:
+        distribution: humble
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          ros-humble-turtlebot3-gazebo \
+          xvfb ffmpeg
+
+    - name: Start virtual display
+      run: |
+        Xvfb :99 -screen 0 1920x1080x24 &
+        sleep 3
+
+    - name: Launch TurtleBot3 Gazebo and record
+      run: |
+        export TURTLEBOT3_MODEL=burger
+        source /opt/ros/humble/setup.bash
+
+        # Start recording display
+        ffmpeg -video_size 1920x1080 -framerate 25 -f x11grab -i :99 \
+               -t 30 -y gazebo_output.mp4 &
+        FF_PID=$!
+
+        # Launch Gazebo
+        ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py &
+        ROS_PID=$!
+
+        # Wait for 30s then kill
+        sleep 30
+        kill $ROS_PID || true
+        wait $FF_PID || true
+
+    - name: Upload video artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: turtlebot-gazebo
+        path: gazebo_output.mp4
